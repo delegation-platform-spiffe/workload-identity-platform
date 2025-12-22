@@ -1,0 +1,41 @@
+# Maven (for subdirectories)
+**/target/
+**/.mvn/
+
+# IDE
+.idea/
+*.iml
+*.iws
+*.ipr
+.vscode/
+.classpath
+.project
+.settings/
+*.swp
+*.swo
+*~
+
+# CA Keys (local development)
+**/ca-keys/
+**/*.pem
+**/*.key
+
+# Logs
+*.log
+logs/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker volumes
+postgres-*-data/
+workload-ca-keys/
+
+# Temporary files
+/tmp/
+*.tmp
+
+# Service subdirectories (they have their own repos)
+# Note: We keep the structure but ignore their .git directories
+**/.git/

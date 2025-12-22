@@ -1,0 +1,176 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Databases
+  postgres-user:
+    image: postgres:15-alpine
+    container_name: postgres-user-service
+    environment:
+      POSTGRES_DB: user_service
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-user-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - spiffe-network
+
+  postgres-photo:
+    image: postgres:15-alpine
+    container_name: postgres-photo-service
+    environment:
+      POSTGRES_DB: photo_service
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5435:5432"
+    volumes:
+      - postgres-photo-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - spiffe-network
+
+  postgres-print:
+    image: postgres:15-alpine
+    container_name: postgres-print-service
+    environment:
+      POSTGRES_DB: print_service
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5436:5432"
+    volumes:
+      - postgres-print-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - spiffe-network
+
+  # Workload API Service (Certificate Authority)
+  workload-api-service:
+    build:
+      context: .
+      dockerfile: workload-api-service/Dockerfile
+    container_name: workload-api-service
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      CA_KEY_STORE_PATH: /app/ca-keys
+      CA_TRUST_DOMAIN: example.org
+    volumes:
+      - workload-ca-keys:/app/ca-keys
+    depends_on:
+      postgres-user:
+        condition: service_healthy
+    networks:
+      - spiffe-network
+
+  # User Service
+  user-service:
+    build:
+      context: .
+      dockerfile: user-service/Dockerfile
+    container_name: user-service
+    ports:
+      - "8081:8081"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-user:5432/user_service
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+      DELEGATION_SIGNING_KEY: default-signing-key-change-in-production-min-256-bits-please-use-a-secure-random-key
+      DELEGATION_ISSUER_SPIFFE_ID: spiffe://example.org/user-service
+      DELEGATION_DEFAULT_TTL: 900
+    depends_on:
+      postgres-user:
+        condition: service_healthy
+      workload-api-service:
+        condition: service_started
+    networks:
+      - spiffe-network
+
+  # Photo Service
+  photo-service:
+    build:
+      context: .
+      dockerfile: photo-service/Dockerfile
+    container_name: photo-service
+    ports:
+      - "8082:8082"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-photo:5432/photo_service
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+      USER_SERVICE_URL: http://user-service:8081
+      WORKLOAD_API_URL: http://workload-api-service:8080
+      # ⚠️ LOCAL DEVELOPMENT ONLY - Static attestation token
+      # ⚠️ DO NOT USE IN PRODUCTION!
+      # In production, use proper attestation (Kubernetes SA token, AWS IAM, etc.)
+      ATTESTATION_TOKEN: dev-token-photo-service-12345
+    depends_on:
+      postgres-photo:
+        condition: service_healthy
+      user-service:
+        condition: service_started
+      workload-api-service:
+        condition: service_started
+    networks:
+      - spiffe-network
+
+  # Print Service
+  print-service:
+    build:
+      context: .
+      dockerfile: print-service/Dockerfile
+    container_name: print-service
+    ports:
+      - "8083:8083"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-print:5432/print_service
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+      USER_SERVICE_URL: http://user-service:8081
+      PHOTO_SERVICE_URL: http://photo-service:8082
+      WORKLOAD_API_URL: http://workload-api-service:8080
+      # ⚠️ LOCAL DEVELOPMENT ONLY - Static attestation token
+      # ⚠️ DO NOT USE IN PRODUCTION!
+      # In production, use proper attestation (Kubernetes SA token, AWS IAM, etc.)
+      ATTESTATION_TOKEN: dev-token-print-service-67890
+    depends_on:
+      postgres-print:
+        condition: service_healthy
+      user-service:
+        condition: service_started
+      photo-service:
+        condition: service_started
+      workload-api-service:
+        condition: service_started
+    networks:
+      - spiffe-network
+
+volumes:
+  postgres-user-data:
+  postgres-photo-data:
+  postgres-print-data:
+  workload-ca-keys:
+
+networks:
+  spiffe-network:
+    driver: bridge
+
