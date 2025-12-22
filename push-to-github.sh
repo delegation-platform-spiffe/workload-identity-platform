@@ -22,6 +22,7 @@ NC='\033[0m' # No Color
 echo -e "${BLUE}=== Pushing Projects to GitHub Organization: $ORG ===${NC}\n"
 
 # Array of projects
+# Note: Root platform repository should be pushed separately as 'spiffe-like' or 'spiffe-like-platform'
 projects=(
     "spiffe-common:SPIFFE Common Library - Shared authentication and delegation components"
     "workload-api-service:Workload API Service - Certificate Authority and Workload API"
@@ -29,6 +30,10 @@ projects=(
     "photo-service:Photo Service - Photo storage service with mTLS support"
     "print-service:Print Service - Photo printing service with mTLS support"
 )
+
+# Root platform repository (orchestration layer)
+ROOT_REPO="spiffe-like"
+ROOT_DESCRIPTION="SPIFFE-like Platform - Orchestration and integration layer for all services"
 
 # Function to create repository on GitHub (requires GitHub CLI or manual creation)
 create_repo() {
@@ -126,8 +131,40 @@ for project in "${projects[@]}"; do
     push_repo "$repo_name" "$description"
 done
 
+# Push root platform repository
+echo -e "${BLUE}Processing root platform repository: $ROOT_REPO${NC}"
+cd "$BASE_DIR"
+if [ -d ".git" ]; then
+    if git remote get-url origin &> /dev/null; then
+        echo -e "${YELLOW}Remote 'origin' already exists: $(git remote get-url origin)${NC}"
+        read -p "Do you want to update it? (y/n) " -n 1 -r
+        echo
+        if [[ $REPLY =~ ^[Yy]$ ]]; then
+            git remote set-url origin "git@github.com:$ORG/$ROOT_REPO.git"
+        fi
+    else
+        git remote add origin "git@github.com:$ORG/$ROOT_REPO.git" 2>/dev/null || \
+        git remote set-url origin "git@github.com:$ORG/$ROOT_REPO.git"
+    fi
+    
+    if ! git ls-remote --heads origin main &> /dev/null; then
+        create_repo "$ROOT_REPO" "$ROOT_DESCRIPTION"
+        sleep 2
+    fi
+    
+    echo -e "${YELLOW}Pushing $ROOT_REPO to GitHub...${NC}"
+    if git push -u origin main; then
+        echo -e "${GREEN}✓ Successfully pushed $ROOT_REPO${NC}\n"
+    else
+        echo -e "${RED}✗ Failed to push $ROOT_REPO${NC}\n"
+    fi
+else
+    echo -e "${YELLOW}Root directory is not a git repository. Skipping.${NC}\n"
+fi
+
 echo -e "${GREEN}=== All projects processed ===${NC}"
 echo -e "${BLUE}Repository URLs:${NC}"
+echo -e "  https://github.com/$ORG/$ROOT_REPO (Platform/Orchestration)"
 for project in "${projects[@]}"; do
     IFS=':' read -r repo_name description <<< "$project"
     echo -e "  https://github.com/$ORG/$repo_name"
