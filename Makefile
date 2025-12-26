@@ -40,8 +40,14 @@ status:
 health:
 	@echo "Checking service health..."
 	@curl -s http://localhost:8080/workload/v1/health || echo "Workload API: DOWN"
-	@curl -s http://localhost:8081/auth/validate?token=test || echo "User Service: DOWN"
+	@curl -s -X POST http://localhost:8081/auth/validate -H "Content-Type: application/json" -d '{"token":"test"}' || echo "User Service: DOWN"
 	@curl -s http://localhost:8082/photos/users/test || echo "Photo Service: DOWN"
 	@curl -s http://localhost:8083/print/status/test || echo "Print Service: DOWN"
+
+# Run API tests
+test:
+	@./test-api.sh
+
+
 
 

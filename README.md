@@ -71,7 +71,25 @@ All services will be available on `localhost`:
 - Photo Service: http://localhost:8082
 - Print Service: http://localhost:8083
 
-See [README-DOCKER.md](./README-DOCKER.md) for detailed Docker instructions.
+**Test the APIs:**
+```bash
+# Run the comprehensive test script
+./test-api.sh
+
+# Or use Make
+make test
+```
+
+The test script will:
+- Check all services are running
+- Test Workload API (health, attestation, certificates)
+- Register a user and login
+- Issue delegation tokens
+- Upload and retrieve photos
+- Create and check print jobs
+- Validate tokens
+
+All tokens and IDs are automatically extracted from responses and used in subsequent calls.
 
 ### Option 2: Local Development
 
@@ -244,7 +262,9 @@ curl -X POST http://localhost:8081/auth/login \
 {
   "message": "Login successful",
   "user_id": "a324f59b-3428-42f2-9345-a350da3db84d",
-  "username": "testuser"
+  "username": "testuser",
+  "access_token": "eyJhbGciOiJIUzUxMiJ9...",
+  "token_type": "Bearer"
 }
 ```
 
@@ -258,10 +278,13 @@ curl -X POST http://localhost:8081/auth/login \
 #### 3. Issue Delegation Token
 **POST** `/auth/delegate`
 
+**Authentication Required**: This endpoint requires a valid user authentication token from `/auth/login` in the `Authorization` header.
+
 **Request:**
 ```bash
 curl -X POST http://localhost:8081/auth/delegate \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <access_token_from_login>" \
   -d '{
     "userId": "a324f59b-3428-42f2-9345-a350da3db84d",
     "targetService": "photo-service",
@@ -269,6 +292,8 @@ curl -X POST http://localhost:8081/auth/delegate \
     "ttlSeconds": 900
   }'
 ```
+
+**Note**: The `userId` in the request body is optional. If provided, it must match the authenticated user from the token. If omitted, the user ID from the authentication token will be used. **Important**: JSON does not support comments - do not include `#` or `//` comments in your JSON request body.
 
 **Response:**
 ```json
@@ -278,20 +303,40 @@ curl -X POST http://localhost:8081/auth/delegate \
 }
 ```
 
-**Response (Error):**
+**Response (Error - Missing Auth):**
 ```json
 {
-  "error": "user_id is required"
+  "error": "Missing or invalid Authorization header. Expected: Bearer <token>"
+}
+```
+
+**Response (Error - Invalid Token):**
+```json
+{
+  "error": "Invalid or expired authentication token"
+}
+```
+
+**Response (Error - Forbidden):**
+```json
+{
+  "error": "Cannot delegate on behalf of another user"
 }
 ```
 
 #### 4. Validate Delegation Token
-**GET** `/auth/validate?token=<delegation_token>`
+**POST** `/auth/validate`
 
 **Request:**
 ```bash
-curl "http://localhost:8081/auth/validate?token=eyJhbGciOiJIUzUxMiJ9..."
+curl -X POST http://localhost:8081/auth/validate \
+  -H "Content-Type: application/json" \
+  -d '{
+    "token": "eyJhbGciOiJIUzUxMiJ9..."
+  }'
 ```
+
+**Note**: Uses POST instead of GET to avoid exposing tokens in query parameters (security best practice).
 
 **Response:**
 ```json
@@ -318,12 +363,18 @@ curl "http://localhost:8081/auth/validate?token=eyJhbGciOiJIUzUxMiJ9..."
 #### 1. Upload Photo
 **POST** `/photos`
 
+**Authentication Required**: This endpoint requires a valid delegation token in the `Authorization` header.
+
 **Request:**
 ```bash
 curl -X POST http://localhost:8082/photos \
-  -F "file=@/path/to/image.png" \
-  -F "userId=a324f59b-3428-42f2-9345-a350da3db84d"
+  -H "Authorization: Bearer <delegation_token>" \
+  -F "file=@/path/to/image.png"
 ```
+
+**Important**: The `@` symbol before the file path is required in curl. It tells curl to read the file from the filesystem. Without `@`, curl will send the literal path string instead of the file contents.
+
+**Note**: The `userId` parameter is no longer required - it is automatically extracted from the validated delegation token. The token must include `write:photos` or `read:photos` permission.
 
 **Response:**
 ```json
@@ -340,13 +391,18 @@ curl -X POST http://localhost:8082/photos \
 ```
 
 #### 2. Get Photo by ID
-**GET** `/photos/{photoId}?userId={userId}`
+**GET** `/photos/{photoId}`
+
+**Authentication Required**: This endpoint requires a valid delegation token in the `Authorization` header.
 
 **Request:**
 ```bash
 curl -o downloaded_image.png \
-  "http://localhost:8082/photos/8b06c1bd-f52c-4694-98c5-ccead96c5230?userId=a324f59b-3428-42f2-9345-a350da3db84d"
+  -H "Authorization: Bearer <delegation_token>" \
+  "http://localhost:8082/photos/8b06c1bd-f52c-4694-98c5-ccead96c5230"
 ```
+
+**Note**: The `userId` parameter is no longer required - it is automatically extracted from the validated delegation token. The token must include `read:photos` permission. Users can only access their own photos.
 
 **Response:**
 - **Content-Type**: `image/png` (or appropriate image type)
@@ -361,10 +417,15 @@ Not Found
 #### 3. List User Photos
 **GET** `/photos/users/{userId}`
 
+**Authentication Required**: This endpoint requires a valid delegation token in the `Authorization` header.
+
 **Request:**
 ```bash
-curl http://localhost:8082/photos/users/a324f59b-3428-42f2-9345-a350da3db84d
+curl -H "Authorization: Bearer <delegation_token>" \
+  http://localhost:8082/photos/users/a324f59b-3428-42f2-9345-a350da3db84d
 ```
+
+**Note**: The `userId` in the path must match the authenticated user from the delegation token. The token must include `read:photos` permission.
 
 **Response:**
 ```json
@@ -430,17 +491,21 @@ curl http://localhost:8082/photos/print-status/88d94043-f8b6-4cf3-9ed9-5797be2e4
 #### 1. Create Print Job
 **POST** `/print`
 
+**Authentication Required**: This endpoint requires a valid delegation token in the `Authorization` header.
+
 **Request:**
 ```bash
 curl -X POST http://localhost:8083/print \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <delegation_token>" \
   -d '{
-    "userId": "a324f59b-3428-42f2-9345-a350da3db84d",
     "photoIds": [
       "96eaf367-f0c5-4c69-beab-b369ec408e3a"
     ]
   }'
 ```
+
+**Note**: The `userId` parameter is optional. If provided, it must match the authenticated user from the token. If omitted, the user ID from the authentication token will be used. The token must include `print:photos` or `read:photos` permission.
 
 **Response:**
 ```json
@@ -459,10 +524,15 @@ curl -X POST http://localhost:8083/print \
 #### 2. Get Print Job Status
 **GET** `/print/status/{printId}`
 
+**Authentication Required**: This endpoint requires a valid delegation token in the `Authorization` header.
+
 **Request:**
 ```bash
-curl http://localhost:8083/print/status/88d94043-f8b6-4cf3-9ed9-5797be2e40d6
+curl -H "Authorization: Bearer <delegation_token>" \
+  http://localhost:8083/print/status/88d94043-f8b6-4cf3-9ed9-5797be2e40d6
 ```
+
+**Note**: The token must include `read:photos` or `print:photos` permission. Users can only access their own print jobs.
 
 **Response (In Progress):**
 ```json
@@ -513,7 +583,7 @@ USER_RESPONSE=$(curl -s -X POST http://localhost:8081/auth/register \
     "password": "securepass123"
   }')
 
-# 2. Login
+# 2. Login (get access token)
 LOGIN_RESPONSE=$(curl -s -X POST http://localhost:8081/auth/login \
   -H "Content-Type: application/json" \
   -d '{
@@ -522,10 +592,12 @@ LOGIN_RESPONSE=$(curl -s -X POST http://localhost:8081/auth/login \
   }')
 
 USER_ID=$(echo $LOGIN_RESPONSE | jq -r '.user_id')
+ACCESS_TOKEN=$(echo $LOGIN_RESPONSE | jq -r '.access_token')
 
-# 3. Issue delegation token for photo-service
+# 3. Issue delegation token for photo-service (requires authentication)
 DELEGATION_RESPONSE=$(curl -s -X POST http://localhost:8081/auth/delegate \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
   -d "{
     \"userId\": \"$USER_ID\",
     \"targetService\": \"photo-service\",
@@ -536,17 +608,18 @@ DELEGATION_RESPONSE=$(curl -s -X POST http://localhost:8081/auth/delegate \
 DELEGATION_TOKEN=$(echo $DELEGATION_RESPONSE | jq -r '.delegation_token')
 
 # 4. Upload a photo (using delegation token in Authorization header)
-# Note: In production, the photo-service would validate the delegation token
 curl -X POST http://localhost:8082/photos \
-  -F "file=@photo.jpg" \
-  -F "userId=$USER_ID"
+  -H "Authorization: Bearer $DELEGATION_TOKEN" \
+  -F "file=@photo.jpg"
 
-# 5. List photos
-curl http://localhost:8082/photos/users/$USER_ID
+# 5. List photos (using delegation token in Authorization header)
+curl -H "Authorization: Bearer $DELEGATION_TOKEN" \
+  http://localhost:8082/photos/users/$USER_ID
 
-# 6. Issue delegation token for print-service
+# 6. Issue delegation token for print-service (requires authentication)
 PRINT_DELEGATION=$(curl -s -X POST http://localhost:8081/auth/delegate \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
   -d "{
     \"userId\": \"$USER_ID\",
     \"targetService\": \"print-service\",
@@ -554,27 +627,76 @@ PRINT_DELEGATION=$(curl -s -X POST http://localhost:8081/auth/delegate \
     \"ttlSeconds\": 900
   }")
 
-# 7. Create print job
-PHOTO_ID=$(curl -s http://localhost:8082/photos/users/$USER_ID | jq -r '.[0].id')
+# 7. Create print job (using delegation token in Authorization header)
+PHOTO_ID=$(curl -s -H "Authorization: Bearer $DELEGATION_TOKEN" \
+  http://localhost:8082/photos/users/$USER_ID | jq -r '.[0].id')
+
+PRINT_DELEGATION_TOKEN=$(echo $PRINT_DELEGATION | jq -r '.delegation_token')
 curl -X POST http://localhost:8083/print \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $PRINT_DELEGATION_TOKEN" \
   -d "{
-    \"userId\": \"$USER_ID\",
     \"photoIds\": [\"$PHOTO_ID\"]
   }"
 
-# 8. Check print status (via photo-service mTLS endpoint)
+# 8. Check print status (using delegation token in Authorization header)
 PRINT_JOB_ID=$(curl -s -X POST http://localhost:8083/print \
   -H "Content-Type: application/json" \
-  -d "{\"userId\": \"$USER_ID\", \"photoIds\": [\"$PHOTO_ID\"]}" | jq -r '.id')
+  -H "Authorization: Bearer $PRINT_DELEGATION_TOKEN" \
+  -d "{\"photoIds\": [\"$PHOTO_ID\"]}" | jq -r '.id')
+
+sleep 2
+curl -H "Authorization: Bearer $PRINT_DELEGATION_TOKEN" \
+  http://localhost:8083/print/status/$PRINT_JOB_ID
 
 sleep 2
 curl http://localhost:8082/photos/print-status/$PRINT_JOB_ID
 ```
 
-## Architecture
+---
 
-See [ARCHITECTURE.md](./ARCHITECTURE.md) for detailed architecture documentation.
+## Testing
+
+### Automated Test Script
+
+A comprehensive test script (`test-api.sh`) is provided that tests all API endpoints in sequence:
+
+```bash
+# Run the test script
+./test-api.sh
+
+# Or use Make
+make test
+```
+
+The script will:
+1. ✅ Check all services are running
+2. ✅ Test Workload API (health, attestation, certificate issuance)
+3. ✅ Register a new user
+4. ✅ Login and obtain access token
+5. ✅ Issue delegation tokens for photo-service and print-service
+6. ✅ Validate delegation tokens
+7. ✅ Upload a photo
+8. ✅ List user photos
+9. ✅ Retrieve a photo by ID
+10. ✅ Create a print job
+11. ✅ Check print job status
+
+**Features:**
+- Automatically extracts tokens and IDs from API responses
+- Uses extracted values in subsequent API calls
+- Color-coded output for easy reading
+- JSON pretty-printing (if `jq` is installed)
+- Comprehensive error handling
+
+**Requirements:**
+- All services must be running (`docker-compose up` or `make up`)
+- `jq` is optional but recommended for better JSON output
+  - Install: `brew install jq` (macOS) or `apt-get install jq` (Linux)
+
+---
+
+## Architecture
 
 ## Key Features
 
