@@ -450,7 +450,7 @@ Authorization: Bearer ${PRINT_DELEGATION_TOKEN:0:50}..." "$print_body"
 main() {
     echo -e "${BLUE}"
     echo "╔══════════════════════════════════════════════════════════════╗"
-    echo "║   SPIFFE-like Authentication & Delegation - API Test Suite  ║"
+    echo "║   Workload Identity Platform - API Test Suite                ║"
     echo "╚══════════════════════════════════════════════════════════════╝"
     echo -e "${NC}"
     

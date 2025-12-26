@@ -1,18 +1,21 @@
-# SPIFFE-like Authentication & Delegation Framework
+# Workload Identity Platform
 
-A demonstration of a SPIFFE-inspired authentication and delegation framework using Java and Spring Boot, eliminating the need for traditional OAuth2/OIDC client IDs and secrets.
+A SPIFFE-inspired authentication and delegation framework using Java and Spring Boot, eliminating the need for traditional OAuth2/OIDC client IDs and secrets.
 
 ## Project Structure
 
-This repository contains multiple Maven projects, each designed to be a separate GitHub repository:
+This is a monorepo containing all services and the shared library:
 
 ```
-spiffe-like/
+workload-identity-platform/
 ├── spiffe-common/          # Shared library (common components)
 ├── workload-api-service/   # Certificate Authority & Workload API
 ├── user-service/           # Authentication & delegation token issuer
 ├── photo-service/          # Photo storage service
-└── print-service/          # Photo printing service
+├── print-service/          # Photo printing service
+├── docker-compose.yml      # Docker Compose configuration
+├── Makefile                # Convenience commands
+└── test-api.sh             # API test script
 ```
 
 ## Services
