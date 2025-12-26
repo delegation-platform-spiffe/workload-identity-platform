@@ -1,0 +1,26 @@
+server:
+  port: 8080
+
+ca:
+  key-store:
+    path: ${CA_KEY_STORE_PATH:/app/ca-keys}
+  trust-domain: ${CA_TRUST_DOMAIN:example.org}
+
+# ⚠️ LOCAL DEVELOPMENT ONLY - Static tokens for service attestation
+# ⚠️ DO NOT USE IN PRODUCTION!
+# In production, implement proper attestation validation (Kubernetes SA tokens, AWS IAM, etc.)
+attestation:
+  tokens:
+    # Static tokens for each service (local dev only)
+    # Each service must provide its token in the attestation_proof
+    # Tokens can be overridden via environment variables
+    photo-service: ${ATTESTATION_TOKEN_PHOTO_SERVICE:dev-token-photo-service-12345}
+    print-service: ${ATTESTATION_TOKEN_PRINT_SERVICE:dev-token-print-service-67890}
+    user-service: ${ATTESTATION_TOKEN_USER_SERVICE:dev-token-user-service-abcde}
+    workload-api-service: ${ATTESTATION_TOKEN_WORKLOAD_API:dev-token-workload-api-xyz}
+
+logging:
+  level:
+    com.example.workloadapi: INFO
+    root: INFO
+

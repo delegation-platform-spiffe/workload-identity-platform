@@ -1,0 +1,34 @@
+server:
+  port: 8081
+
+spring:
+  datasource:
+    url: jdbc:postgresql://postgres-user:5432/user_service
+    username: postgres
+    password: postgres
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+    properties:
+      hibernate:
+        format_sql: false
+
+delegation:
+  signing-key: ${DELEGATION_SIGNING_KEY:default-signing-key-change-in-production-min-256-bits-please-use-a-secure-random-key}
+  issuer-spiffe-id: ${DELEGATION_ISSUER_SPIFFE_ID:spiffe://example.org/user-service}
+  default-ttl: ${DELEGATION_DEFAULT_TTL:900}
+
+user:
+  token:
+    signing-key: ${USER_TOKEN_SIGNING_KEY:${DELEGATION_SIGNING_KEY:default-signing-key-change-in-production-min-256-bits-please-use-a-secure-random-key}}
+    issuer: ${USER_TOKEN_ISSUER:spiffe://example.org/user-service}
+    default-ttl: ${USER_TOKEN_DEFAULT_TTL:3600}
+
+logging:
+  level:
+    com.example.userservice: INFO
+    root: INFO
+

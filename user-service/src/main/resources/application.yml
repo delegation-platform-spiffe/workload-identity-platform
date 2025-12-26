@@ -1,0 +1,36 @@
+server:
+  port: 8081
+
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/user_service
+    username: postgres
+    password: postgres
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+
+delegation:
+  signing-key: default-signing-key-change-in-production-min-256-bits-please-use-a-secure-random-key
+  issuer-spiffe-id: spiffe://example.org/user-service
+  default-ttl: 900  # 15 minutes
+
+user:
+  token:
+    # User authentication token signing key (can reuse delegation key or use separate)
+    signing-key: ${delegation.signing-key}
+    issuer: spiffe://example.org/user-service
+    default-ttl: 3600  # 1 hour
+
+logging:
+  level:
+    com.example.userservice: INFO
+    root: INFO
+
+
+
+

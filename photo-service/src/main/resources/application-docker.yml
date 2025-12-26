@@ -1,0 +1,36 @@
+server:
+  port: 8082
+
+spring:
+  datasource:
+    url: jdbc:postgresql://postgres-photo:5432/photo_service
+    username: postgres
+    password: postgres
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+    properties:
+      hibernate:
+        format_sql: false
+
+user-service:
+  url: ${USER_SERVICE_URL:http://user-service:8081}
+
+workload-api:
+  url: ${WORKLOAD_API_URL:http://workload-api-service:8080}
+
+service:
+  name: photo-service
+
+print-service:
+  url: ${PRINT_SERVICE_URL:http://print-service:8083}
+  mtls-url: ${PRINT_SERVICE_MTLS_URL:https://print-service:8443}
+
+logging:
+  level:
+    com.example.photoservice: INFO
+    root: INFO
+

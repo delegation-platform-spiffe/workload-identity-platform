@@ -1,0 +1,33 @@
+server:
+  port: 8083
+  mtls:
+    port: ${MTLS_PORT:8443}
+
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/print_service
+    username: postgres
+    password: postgres
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+
+user-service:
+  url: ${USER_SERVICE_URL:http://localhost:8081}
+
+workload-api:
+  url: ${WORKLOAD_API_URL:http://localhost:8080}
+
+service:
+  name: print-service
+
+logging:
+  level:
+    com.example.printservice: INFO
+    com.example.spiffe: INFO
+    root: INFO
+
